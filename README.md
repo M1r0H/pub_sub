@@ -1,19 +1,21 @@
-1. Create an `.env` file in the project root. See the `.env.example` file for reference. For a successful start it is enough to move all variables and their values from `.env.example` to `.env`
+## Node v20.18.1
+
+1. Install dependencies
+    ```bash 
+    npm install
+    ```
+   
+2. Create an `.env` file in the project root. See the `.env.example` file for reference. For a successful start it is enough to move all variables and their values from `.env.example` to `.env`
 
 
-2. Up redis cluster
+3. Up redis cluster
     ```bash
     docker-compose up -d
     ```
 
-3. Install dependencies
-    ```bash 
-    npm install
-    ```
-
 4. Run the project
     ```bash 
-    npm run dev
+    npm run start:dev
     ```
 5. API:
    - Subscribe to topic:
