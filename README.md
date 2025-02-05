@@ -1,14 +1,19 @@
-1. Install dependencies
+1. Create a `.env` file in the root of the project and add the following environment variables. Watch the `.env.example` file for reference.
+2. Up redis cluster
+    ```bash
+    docker-compose up -d
+    ```
+
+3. Install dependencies
     ```bash 
     npm install
     ```
-2. Create a `.env` file in the root of the project and add the following environment variables. Watch the `.env.example` file for reference.
 
-3. Run the project
+4. Run the project
     ```bash 
     npm run dev
     ```
-4. API:
+5. API:
    - Subscribe to topic:
 
     ```bash  
