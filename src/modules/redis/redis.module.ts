@@ -1,48 +1,72 @@
-import { DynamicModule, Global, Inject, Module, OnModuleInit, Provider } from '@nestjs/common';
+import { DynamicModule, Global, Module, Provider } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
-import Redis from 'ioredis';
+import { Cluster, Command } from 'ioredis';
 import { RedisService } from '@modules/redis/services';
+import { ClusterOptions } from 'ioredis/built/cluster/ClusterOptions';
 
 @Global()
 @Module({})
-export class RedisModule implements OnModuleInit{
-  private static redisUrl: string;
-
-  @Inject()
-  private configService: ConfigService;
+export class RedisModule {
+  private static clusterOptions: ClusterOptions;
+  private static nodes: { host: string; port: number }[];
 
   public static forRoot(): DynamicModule {
     const clientProvider: Provider = {
       provide: 'REDIS_CLIENT',
-      useFactory: (): Redis => {
-        const client = new Redis(this.redisUrl);
+      useFactory: async (configService: ConfigService): Promise<Cluster> => {
+        const redisHosts = configService.get<string>('REDIS_HOSTS', 'redis-node-1:7001');
+        const redisPassword = configService.get<string>('REDIS_PASSWORD', '');
 
-        client.on('error', (err) =>
-          console.error('ioredis Client Error', err)
+        RedisModule.nodes = redisHosts.split(',').map((host) => {
+          const [hostname, port] = host.split(':');
+
+          return { host: hostname, port: Number(port) };
+        });
+
+        RedisModule.clusterOptions = {
+          redisOptions: {
+            password: redisPassword,
+            maxRetriesPerRequest: null,
+            enableReadyCheck: false,
+            reconnectOnError: () => true,
+          },
+        };
+
+        const cluster = new Cluster(this.nodes, this.clusterOptions);
+
+        await new Promise((resolve) => {
+          cluster.on('ready', resolve);
+        });
+
+        await RedisModule.applyClusterConfig(cluster);
+
+        cluster.on('error', (err) =>
+          console.error('ioredis Cluster Client Error', err),
         );
 
-        return client;
+        return cluster;
       },
+      inject: [ConfigService],
     };
 
     const clientFactoryProvider: Provider = {
       provide: 'REDIS_SUBSCRIBER_FACTORY',
       useFactory: () => {
-        return async (): Promise<Redis> => {
-          const client = new Redis(this.redisUrl);
+        return async (): Promise<Cluster> => {
+          const cluster = new Cluster(this.nodes, this.clusterOptions);
 
-          client.on('error', (err) =>
-            console.error('ioredis Subscriber Error', err),
+          cluster.on('error', (err) =>
+            console.error('ioredis Cluster Subscriber Error', err),
           );
 
-          return client;
+          return cluster;
         };
       },
     };
 
     const module = this.getModule();
 
-    module.imports = [ ConfigModule ];
+    module.imports = [ConfigModule];
 
     module.providers = [
       clientProvider,
@@ -50,7 +74,7 @@ export class RedisModule implements OnModuleInit{
       RedisService,
     ];
 
-    module.exports =[
+    module.exports = [
       'REDIS_CLIENT',
       RedisService,
     ];
@@ -73,10 +97,14 @@ export class RedisModule implements OnModuleInit{
     };
   }
 
-  public onModuleInit(): any {
-    RedisModule.redisUrl = this.configService.get<string>(
-      'REDIS_URL',
-      'redis://localhost:6379',
-    );
+  private static async applyClusterConfig(cluster: Cluster) {
+    const masters = cluster.nodes('master');
+
+    for (const node of masters) {
+      await node.sendCommand(new Command('CONFIG', ['SET', 'maxclients', '10000']));
+      await node.sendCommand(new Command('CONFIG', ['SET', 'notify-keyspace-events', 'KEA']));
+      await node.sendCommand(new Command('CONFIG', ['SET', 'repl-disable-tcp-nodelay', 'no']));
+      await node.sendCommand(new Command('CONFIG', ['SET', 'client-query-buffer-limit', '512mb']));
+    }
   }
 }

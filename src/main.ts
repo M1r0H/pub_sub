@@ -1,12 +1,32 @@
+import { isMainThread, parentPort, Worker, workerData } from 'node:worker_threads';
 import { NestFactory } from '@nestjs/core';
-import { AppModule } from '@src/app.module';
+import { AppModule } from './app.module';
+import * as os from 'os';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+    if (isMainThread) {
+      const numCPUs = os.cpus().length;
 
-  app.enableCors();
+      for (let i = 0; i < numCPUs; i++) {
+        new Worker(__filename, { workerData: { port: 3000 + i } });
+      }
+    } else {
+      const port = workerData.port;
 
-  await app.listen(process.env.PORT ?? 3000);
-}
+      try {
+        const app = await NestFactory.create(AppModule);
 
-bootstrap();
+        app.use(require('express').json({ limit: '2mb' }));
+
+        await app.listen(port);
+
+        if (parentPort) {
+          parentPort.postMessage('ready');
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+  }
+
+  bootstrap();
