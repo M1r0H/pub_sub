@@ -34,3 +34,8 @@
    -H 'Content-Type: application/json' \
    -d '{"name": "John Doe", "email": "john@example.com", "message": "Hello World"}'
    ```
+   
+6. Shut down docker containers
+    ```bash 
+    docker-compose down --volumes
+    ```
