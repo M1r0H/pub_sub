@@ -1,4 +1,6 @@
-1. Create a `.env` file in the root of the project and add the following environment variables. Watch the `.env.example` file for reference.
+1. Create an `.env` file in the project root. See the `.env.example` file for reference. For a successful start it is enough to move all variables and their values from `.env.example` to `.env`
+
+
 2. Up redis cluster
     ```bash
     docker-compose up -d
